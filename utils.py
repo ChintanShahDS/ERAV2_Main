@@ -89,7 +89,7 @@ def createImagePreds(numImages, images, preds, labels, classes, imagename):
         # ret = model.predict(data, batch_size=1)
         #print(ret)
 
-        plt.title("Pred:" + pred + "\nGT:" + gt, color='#ff0000', fontdict={'fontsize': 12})
+        plt.title("Pred:" + pred + "\nGT:" + gt, color='#ff0000')
 
     plt.savefig(imagename, bbox_inches='tight')
     plt.show()
@@ -103,7 +103,7 @@ def visualizeData(dataloader, num_images, classes):
     images, labels = next(dataiter)
     images = images[0:num_images]
 
-    createImagePreds(num_images, images, labels[0:num_images], labels[0:num_images], classes, 'DataLoaderImage.jpg')
+    createImagePreds(num_images, images, labels[0:num_images], labels[0:num_images], classes, '/content/output/DataLoaderImage.jpg')
 
 def drawLossAccuracyPlots(train_losses, train_accs, test_losses, test_accs):
     fig = plt.figure()
@@ -116,14 +116,16 @@ def drawLossAccuracyPlots(train_losses, train_accs, test_losses, test_accs):
     axs[0, 1].set_title("Test Loss")
     axs[1, 1].plot(test_accs)
     axs[1, 1].set_title("Test Accuracy")
-    plt.savefig('AccuracyPlots.jpg', bbox_inches='tight')
+    plt.savefig('/content/output/AccuracyPlots.jpg', bbox_inches='tight')
     plt.show()
 
 def showIncorrectPreds(numImages, images, incorrectPreds, nonMatchingLabels,classes):
-    imagename = 'IncorrectPreds.jpg'
+    imagename = '/content/output/IncorrectPreds.jpg'
     createImagePreds(numImages, images, incorrectPreds, nonMatchingLabels, classes, imagename)
 
 def showGradCam(numImages, images, incorrectPreds, nonMatchingLabels,classes, model, target_layers):
+    ds_mean = (0.4914, 0.4822, 0.4465)
+    ds_std = (0.247, 0.243, 0.261)
     _misclassified_batch = np.array(images)
 
     # target_layers = [model.layer3[-1]]
@@ -144,7 +146,7 @@ def showGradCam(numImages, images, incorrectPreds, nonMatchingLabels,classes, mo
 
     i = 0
     for actual in nonMatchingLabels[0:numImages]:
-        print(i, (2*i)+2)
+        # print(i, (2*i)+2)
         ax = plt.subplot(4, 10, (2 * i)+2)
         plt.axis('off')
 
@@ -165,8 +167,8 @@ def showGradCam(numImages, images, incorrectPreds, nonMatchingLabels,classes, mo
         ax.set_title(f"actual: {classes[actual]} \n predicted: {classes[incorrectPreds[i]]}")
         i = i+1
 
+    plt.savefig('/content/output/gradcam.jpg', bbox_inches='tight')
     plt.show()
-    plt.savefig('gradcam.jpg')
 
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
@@ -189,7 +191,9 @@ def getTrainTestTransforms(mean, std):
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.RandomErasing(scale=(0.5, 0.5), ratio=(1, 1), value=mean, inplace=False),
+        transforms.Pad(16, mean, 'constant'),
+        transforms.RandomErasing(scale=(0.25, 0.25), ratio=(1, 1), value=mean, inplace=False),
+        transforms.CenterCrop(32,32),
         transforms.Normalize(mean, std),
         ])
         
@@ -218,7 +222,7 @@ def getCifar10DataLoader(batchsize):
     test_loader = torch.utils.data.DataLoader(testset, **kwargs)
 
     classes = trainset.classes
-    print("Classes:", classes)
+    # print("Classes:", classes)
     # classes = ('plane', 'car', 'bird', 'cat', 'deer',
                # 'dog', 'frog', 'horse', 'ship', 'truck')
     

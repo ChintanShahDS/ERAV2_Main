@@ -11,17 +11,20 @@ import torchvision
 from torchsummary import summary
 from tqdm import tqdm
 
-# from models import *
-from ERAV2_Main.utils import *
+import sys
+sys.path.insert(0, '/content/ERAV2_Main')
+
+from models import *
+from utils import *
 
 # Fast AI method
 def find_maxlr(mymodel, train_loader):
     from torch_lr_finder import LRFinder
     criterion = nn.CrossEntropyLoss()
-    optimizer_lr = optim.SGD(mymodel.parameters(), lr=1e-4, weight_decay=0)
+    optimizer_lr = optim.SGD(mymodel.parameters(), lr=1e-6, weight_decay=1e-1)
     # optimizer_lr = optim.Adam(mymodel.parameters(), lr=1e-7, weight_decay=1e-1)
     lr_finder = LRFinder(mymodel, optimizer_lr, criterion, device="cuda")
-    lr_finder.range_test(train_loader, end_lr=10, num_iter=100)
+    lr_finder.range_test(train_loader, end_lr=10, num_iter=200)
     __, maxlr = lr_finder.plot() # to inspect the loss-learning rate graph
     lr_finder.reset() # to reset the model and optimizer to their initial state
     print("max_LR:", maxlr)
@@ -66,7 +69,6 @@ def train(model, device, trainloader, optimizer, criterion, scheduler):
         100. * correct / len(trainloader.dataset)))
     last_lr = scheduler.get_last_lr()
     print(f"Last computed learning rate: {last_lr}")
-    print("LR Rate:", optimizer.param_groups[0]['lr'])
 
     return train_acc, train_loss
 
@@ -101,7 +103,7 @@ def setupTrainingParams(initialModelPath, optimizer_name, criterion_name, schedu
 
     print(optimizer_name, criterion_name, scheduler_name)
 
-    if (scheduler_name == 'ÓneCycleLR'):
+    if (scheduler_name == 'OneCycleLR'):
         mymodel = torch.load(initialModelPath)
         maxlr = find_maxlr(mymodel, train_loader)
 
@@ -125,7 +127,7 @@ def setupTrainingParams(initialModelPath, optimizer_name, criterion_name, schedu
         raise Exception()
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-    if (scheduler_name == 'ÓneCycleLR'):
+    if (scheduler_name == 'OneCycleLR'):
         pct_start = 0.3
         base_momentum = 0.85
         max_momentum = 0.9
@@ -165,11 +167,52 @@ def runTraining(train_loader, test_loader, initialModelPath, optimizer_name, cri
         test_losses.append(test_loss)
         
     return mymodel, train_losses, test_losses, train_accs, test_accs
+    
+# This is to be properly created
+# Currently a temporary thing - Able to run as a Python main earlier
+# But need to create such a way that can be run as functions or as main
+def main(batchsize, num_epochs, base_lr, optimizer_name, criterion_name, scheduler_name):
 
-def main():
+    initialModelPath = '/content/temp/InitialModel.pth'
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    # Data
+    print('==> Preparing data..')
+    train_loader, test_loader, classes = getCifar10DataLoader(batchsize)
+
+    visualizeData(train_loader, 20, classes)
+
+    # Model
+    print('==> Building model..')
+    mymodel = ResNet18()
+    mymodel = mymodel.to(device)
+    torch.save(mymodel, initialModelPath)
+    summary(mymodel, input_size=(3, 32, 32))
+
+    print('==> Training model..')
+    mymodel, train_losses, test_losses, train_accs, test_accs = runTraining(
+        train_loader, test_loader, initialModelPath, optimizer_name, 
+        criterion_name, scheduler_name, device, num_epochs=num_epochs, base_lr=base_lr)
+
+    print('==> Accuracy plots..')
+    drawLossAccuracyPlots(train_losses, train_accs, test_losses, test_accs)
+
+    print('==> Incorrect outcomes..')
+    numImages = 10
+    images, nonMatchingLabels, incorrectPreds = incorrectOutcomes(mymodel, device, test_loader, numImages)
+    showIncorrectPreds(numImages, images, incorrectPreds, nonMatchingLabels,classes)
+
+    print('==> Incorrect outcomes explanation using GradCam..')
+    showGradCam(numImages, images, incorrectPreds, nonMatchingLabels, classes, mymodel, [mymodel.layer4[-1]])
+    
+    print('==> End of the training and results..')
+
+if __name__ == '__main__':
     print("Start of the main module")
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--num_epochs', default=20, type=int, help='number of epochs')
+    parser.add_argument('--batchsize', default=20, type=int, help='Batch size')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--optimizer', default='SGD', type=str, help='optimizer')
     parser.add_argument('--criterion', default='CrossEntropyLoss', type=str, help='loss criteria')
@@ -181,54 +224,10 @@ def main():
 
     # getting all arguments
     num_epochs = args.num_epochs
-    lr = args.lr
+    batchsize = args.batchsize
+    base_lr = args.lr
     optimizer_name = args.optimizer
     criterion_name = args.criterion
-    lrsch_name = args.lrscheduler
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    best_acc = 0  # best test accuracy
-    start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-
-
-    # ds_mean, ds_std = get_mean_and_std(dataset)
-
-    # Data
-    print('==> Preparing data..')
-    transform_train, transform_test = trainTestTransforms(ds_mean, ds_std)
-
-
-    batchsize = 512
-
-    kwargs = {'batch_size':batchsize, 'shuffle': True, 'num_workers': 4, 'pin_memory': True}
-
-    trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train)
-    train_loader = torch.utils.data.DataLoader(trainset, **kwargs)
-
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform_test)
-    test_loader = torch.utils.data.DataLoader(testset, **kwargs)
-
-    classes = ('plane', 'car', 'bird', 'cat', 'deer',
-               'dog', 'frog', 'horse', 'ship', 'truck')
-
-    visualizeData(train_loader, 20, classes)
-
-    # Model
-    print('==> Building model..')
-    mymodel = ResNet18()
-    mymodel = mymodel.to(device)
-    summary(mymodel, input_size=(3, 32, 32))
-    torch.save(mymodel, 'InitialModel.pth')
-    if device == 'cuda':
-        mymodel = torch.nn.DataParallel(mymodel)
-        cudnn.benchmark = True
-
-    drawLossAccuracyPlots(train_losses, train_accs, test_losses, test_accs)
-
-    numImages = 10
-    images, nonMatchingLabels, incorrectPreds = incorrectOutcomes(mymodel, device, test_loader, numImages)
-    showIncorrectPreds(numImages, images, incorrectPreds, nonMatchingLabels,classes, mymodel, gradCam=False)    
-
-    showIncorrectPreds(numImages, images, incorrectPreds, nonMatchingLabels,classes, trained_model=mymodel, gradCam=True)
+    scheduler_name = args.lrscheduler
+    
+    main(batchsize, num_epochs, base_lr, optimizer_name, criterion_name, scheduler_name)
