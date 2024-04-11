@@ -119,53 +119,54 @@ def drawLossAccuracyPlots(train_losses, train_accs, test_losses, test_accs):
     plt.savefig('AccuracyPlots.jpg', bbox_inches='tight')
     plt.show()
 
-def showGradCam(image, trained_model, target_layers, actual):
-    target_layers = target_layers
-    input_tensor = torch.Tensor(np.transpose(image, (2, 0, 1))).unsqueeze(dim=0)
-    # Create an input tensor image for your model..
-    # Note: input_tensor can be a batch tensor with several images!
+def showIncorrectPreds(numImages, images, incorrectPreds, nonMatchingLabels,classes):
+    imagename = 'IncorrectPreds.jpg'
+    createImagePreds(numImages, images, incorrectPreds, nonMatchingLabels, classes, imagename)
+
+def showGradCam(numImages, images, incorrectPreds, nonMatchingLabels,classes, model, target_layers):
+    _misclassified_batch = np.array(images)
+
+    # target_layers = [model.layer3[-1]]
+    input_tensor = torch.from_numpy(_misclassified_batch)
 
     # Construct the CAM object once, and then re-use it on many images:
-    # Hardcoded to True for now
-    cam = GradCAM(model=trained_model, target_layers=target_layers)
+    cam = GradCAM(model=model, target_layers=target_layers)
 
-    # You can also use it within a with statement, to make sure it is freed,
-    # In case you need to re-create it inside an outer loop:
-    # with GradCAM(model=model, target_layers=target_layers, use_cuda=args.use_cuda) as cam:
-    #   ...
-
-    # We have to specify the target we want to generate
-    # the Class Activation Maps for.
-    # If targets is None, the highest scoring category
-    # will be used for every image in the batch.
-    # Here we use ClassifierOutputTarget, but you can define your own custom targets
-    # That are, for example, combinations of categories, or specific outputs in a non standard model.
-
-    targets = [ClassifierOutputTarget(actual)]
+    targets = [ClassifierOutputTarget(t) for t in nonMatchingLabels]
 
     # You can also pass aug_smooth=True and eigen_smooth=True, to apply smoothing.
     grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
 
-    # In this example grayscale_cam has only one image in the batch:
-    grayscale_cam = grayscale_cam[0, :]
-    visualization = show_cam_on_image(image, grayscale_cam, use_rgb=True)
-    return visualization
+    mean_R, mean_G, mean_B = ds_mean
+    std_R, std_G, std_B = ds_std
 
-def showIncorrectPreds(numImages, images, incorrectPreds, nonMatchingLabels,classes, trained_model, gradCam=False):
+    fig = plt.figure(figsize=(24, 10))
 
-    imagename = 'IncorrectPreds.jpg'
-    if gradCam:
-        imagename = 'IncorrectPredsWithGradCam.jpg'
+    i = 0
+    for actual in nonMatchingLabels[0:numImages]:
+        print(i, (2*i)+2)
+        ax = plt.subplot(4, 10, (2 * i)+2)
+        plt.axis('off')
 
-    updatedImages = []
-    if gradCam:
-        for i in range(numImages):
-            image = images[i]
-            image = showGradCam(image, trained_model, [trained_model.layer3[-1]], nonMatchingLabels[i])
-            updatedImages.append(image)
-        images = updatedImages
+        cam_result = grayscale_cam[i, :]
 
-    createImagePreds(numImages, images, incorrectPreds, nonMatchingLabels, classes, imagename)
+        _misclassified_batch[i, 0, :, :] = (_misclassified_batch[i, 0, :, :] * std_R) + mean_R
+        _misclassified_batch[i, 1, :, :] = (_misclassified_batch[i, 1, :, :] * std_G) + mean_G
+        _misclassified_batch[i, 2, :, :] = (_misclassified_batch[i, 2, :, :] * std_B) + mean_B
+
+        visualization = show_cam_on_image(_misclassified_batch[i].transpose((1, 2, 0)), cam_result, use_rgb=True, image_weight=0.6)
+
+        plt.imshow(visualization, cmap='jet')
+
+        ax = plt.subplot(4, 10, (2 * i)+1)
+        plt.axis('off')
+        plt.imshow(_misclassified_batch[i].transpose((1, 2, 0)), cmap='jet')
+
+        ax.set_title(f"actual: {classes[actual]} \n predicted: {classes[incorrectPreds[i]]}")
+        i = i+1
+
+    plt.show()
+    plt.savefig('gradcam.jpg')
 
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
@@ -200,7 +201,7 @@ def getTrainTestTransforms(mean, std):
         
     return train_transforms, test_transforms
 
-def getCifar10DataLoader(batchsize)
+def getCifar10DataLoader(batchsize):
     kwargs = {'batch_size':batchsize, 'shuffle': True, 'num_workers': 2, 'pin_memory': True}
     
     ds_mean = (0.4914, 0.4822, 0.4465)

@@ -11,19 +11,21 @@ import torchvision
 from torchsummary import summary
 from tqdm import tqdm
 
-from models import *
-from utils import *
+# from models import *
+from ERAV2_Main.utils import *
 
 # Fast AI method
-def find_maxlr():
-	from torch_lr_finder import LRFinder
-	optimizer_lr = optim.Adam(mymodel.parameters(), lr=1e-7, weight_decay=1e-1)
-	lr_finder = LRFinder(mymodel, optimizer_lr, criterion, device="cuda")
-	lr_finder.range_test(train_loader, end_lr=10, num_iter=100)
-	__, maxlr = lr_finder.plot() # to inspect the loss-learning rate graph
-	lr_finder.reset() # to reset the model and optimizer to their initial state
-	print("max_LR:", maxlr)
-	return maxlr
+def find_maxlr(mymodel, train_loader):
+    from torch_lr_finder import LRFinder
+    criterion = nn.CrossEntropyLoss()
+    optimizer_lr = optim.SGD(mymodel.parameters(), lr=1e-4, weight_decay=0)
+    # optimizer_lr = optim.Adam(mymodel.parameters(), lr=1e-7, weight_decay=1e-1)
+    lr_finder = LRFinder(mymodel, optimizer_lr, criterion, device="cuda")
+    lr_finder.range_test(train_loader, end_lr=10, num_iter=100)
+    __, maxlr = lr_finder.plot() # to inspect the loss-learning rate graph
+    lr_finder.reset() # to reset the model and optimizer to their initial state
+    print("max_LR:", maxlr)
+    return maxlr
 
 def train(model, device, trainloader, optimizer, criterion, scheduler):
     model.train()
@@ -95,44 +97,45 @@ def test(model, device, test_loader, criterion):
 
     return test_acc, test_loss
 
-def setupTrainingParams(initialModelPath, optimizer_name, criterion_name, scheduler_name, base_lr):
+def setupTrainingParams(initialModelPath, optimizer_name, criterion_name, scheduler_name, train_loader, num_epochs, base_lr):
 
-    if lrsch_name == 'OneCycleLR':
+    print(optimizer_name, criterion_name, scheduler_name)
+
+    if (scheduler_name == 'ÓneCycleLR'):
         mymodel = torch.load(initialModelPath)
-        maxlr = find_maxlr()
+        maxlr = find_maxlr(mymodel, train_loader)
 
     mymodel = torch.load(initialModelPath)
 
     criterion = nn.CrossEntropyLoss()
-    if criterion_name == 'CrossEntropyLoss':
+    if (criterion_name=='ÇrossEntropyLoss'):
         criterion = nn.CrossEntropyLoss()
     else:
         print("This Loss Criteria is currently not supported")
-        raise Exception()
         
     optimizer = optim.SGD(mymodel.parameters(), lr=base_lr,
                           momentum=0.9, weight_decay=5e-4)
-    if optimizer_name == 'SGD':
+    if (optimizer_name == 'SGD'):
         optimizer = optim.SGD(mymodel.parameters(), lr=base_lr,
                           momentum=0.9, weight_decay=5e-4)
-    elif optimizer_name == 'Adam':
+    elif (optimizer_name == 'Adam'):
         optimizer = optim.Adam(mymodel.parameters(), lr=base_lr)
     else:
         print("This Optimizer is currently not supported")
         raise Exception()
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-    if lrsch_name == 'OneCycleLR':
+    if (scheduler_name == 'ÓneCycleLR'):
         pct_start = 0.3
         base_momentum = 0.85
         max_momentum = 0.9
         scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=maxlr, div_factor=10,
                                                     final_div_factor=10, steps_per_epoch=len(train_loader),
-                                                    epochs=num_epochs, pct_start=max_lr_epoch/num_epochs,
+                                                    epochs=num_epochs, pct_start=pct_start,
                                                     three_phase=False, anneal_strategy='linear')
-    elif lrsch_name == 'LROnPlateau':
+    elif (scheduler_name == 'LROnPlateau'):
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2, factor=0.1, threshold_mode='rel', verbose=True)
-    elif lrsch_name == 'CosineAnnealingLR':
+    elif (scheduler_name == 'CosineAnnealingLR'):
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
     else:
         print("This LR Scheduler is currently not supported. Supported Schedulers are 'OneCycleLR', 'LROnPlateau' and 'CosineAnnealingLR'")
@@ -141,9 +144,11 @@ def setupTrainingParams(initialModelPath, optimizer_name, criterion_name, schedu
     return mymodel, optimizer, criterion, scheduler
 
 
-def runTraining(train_loader, test_loader, initialModelPath, optimizer_name, criterion_name, scheduler_name, num_epochs=20, base_lr=0.01):
+def runTraining(train_loader, test_loader, initialModelPath, optimizer_name, criterion_name, scheduler_name, device, num_epochs=20, base_lr=0.01):
 
-    mymodel, optimizer, criterion, scheduler = setupTrainingParams(initialModelPath, optimizer_name, criterion_name, scheduler_name, base_lr)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    mymodel, optimizer, criterion, scheduler = setupTrainingParams(initialModelPath, optimizer_name, criterion_name, scheduler_name, train_loader, num_epochs, base_lr)
     # Data to plot accuracy and loss graphs
     train_losses = []
     test_losses = []
