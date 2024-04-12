@@ -7,6 +7,10 @@ File containing functions that are used to
 - Run Evaluation
 - Find Max LR for OneCyleLR
 - Setup the required Optimizer, Loss Criteria and LR Scheduler
+Some prerequisites
+- Need to have output and temp folder for it to work
+- output images / plots will be written to output folder
+- temp is used to store the temp model
   
 This can be run in 2 different modes
 - By importing the file and running different functions in appropriate order to get the results
