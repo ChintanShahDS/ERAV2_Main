@@ -20,7 +20,7 @@ from pytorch_grad_cam.utils.image import show_cam_on_image
 
 import torch
 import torchvision
-import torchvision.transforms as transforms
+import torchvision.transforms.v2 as transforms
 import torch.nn as nn
 import torch.nn.init as init
 
@@ -192,14 +192,16 @@ def getTrainTestTransforms(mean, std):
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Pad(16, mean, 'constant'),
-        transforms.RandomErasing(scale=(0.25, 0.25), ratio=(1, 1), value=mean, inplace=False),
-        transforms.CenterCrop(32,32),
+        transforms.ConvertImageDtype(torch.float),
         transforms.Normalize(mean, std),
+        transforms.RandomErasing(scale=(0.125, 0.125), ratio=(1, 1), value=mean, inplace=False),
+        transforms.CenterCrop(32),
         ])
         
     # Test data transformations
     test_transforms = transforms.Compose([
         transforms.ToTensor(),
+        transforms.ConvertImageDtype(torch.float),
         transforms.Normalize(mean, std),
         ])
         
