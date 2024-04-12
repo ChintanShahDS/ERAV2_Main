@@ -61,12 +61,12 @@ def train(model, device, trainloader, optimizer, criterion, scheduler):
         scheduler.step()
 
     train_acc= 100*correct/processed
-    print('\nProcessed: {}, Len TrainLoader: {}'.format(processed, len(trainloader)))
+    # print('\nProcessed: {}, Len TrainLoader: {}'.format(processed, len(trainloader)))
     # train_losses.append(train_loss/len(trainloader))
     train_loss = train_loss/len(trainloader)
-    print('Train set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)'.format(
-        train_loss, correct, len(trainloader.dataset),
-        100. * correct / len(trainloader.dataset)))
+    # print('Train set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)'.format(
+        # train_loss, correct, len(trainloader.dataset),
+        # 100. * correct / len(trainloader.dataset)))
     last_lr = scheduler.get_last_lr()
     print(f"Last computed learning rate: {last_lr}")
 
@@ -89,7 +89,7 @@ def test(model, device, test_loader, criterion):
 
             correct += GetCorrectPredCount(output, target)
 
-    print("target total:", total, "test_loader len:", len(test_loader.dataset))
+    # print("target total:", total, "test_loader len:", len(test_loader.dataset))
     test_loss /= total
     test_acc = (100. * correct / total)
     # test_losses.append(test_loss)
