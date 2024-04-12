@@ -68,7 +68,7 @@ def train(model, device, trainloader, optimizer, criterion, scheduler):
         # train_loss, correct, len(trainloader.dataset),
         # 100. * correct / len(trainloader.dataset)))
     last_lr = scheduler.get_last_lr()
-    print(f"Last computed learning rate: {last_lr}")
+    print(f"\nLast computed learning rate: {last_lr}")
 
     return train_acc, train_loss
 
